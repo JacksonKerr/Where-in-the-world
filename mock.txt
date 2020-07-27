@@ -1,15 +1,18 @@
 # Already correct (Ignoring precision)
+4, 2
+4 ,2
 1.234567 -23.987654
 1.2, -23.9
-0 0
+0 0.004
 1.234567, -23.987654
 
 # Wrap
-1234.567, -23987.654
+#1234.567, -23987.654
 
 # Alt form (Good format)
 53.21 N, 21.12 W
 21.12 E, 532.1 N
+21.12 E, 532 N
 40° 26′ 46″ N 79° 58′ 56″ W
 40 d 26 m 46 s N, 79 d 58 m 56 s W
 40 26 46 N, 79 58 56 W
@@ -18,13 +21,5 @@
 40° 26.767′ N 79° 58.933′ W
 
 # Not to be accepted, clearly wrong
-This doesn't look right
-12 34 56 78 90 12 34 56 78 90
-
-
-
-# output to 6dp: lat, lon
-# -90 < lat < 90
-# -180 < lon < 180
-
-# Maybe let them = 90 &/|| -90? lat = up and down
+#This doesn't look right
+#12 34 56 78 90 12 34 56 78 90
