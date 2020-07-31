@@ -4,53 +4,56 @@ import re
 import pprint
 
 def main():
+    # Print out help message if -h flag is used
+    if "-h" in sys.argv:
+        print(help_info())
+        sys.exit()
+
+    verbose = True
+
     san_coords = read_coords()
 
     # Regex for checking if a string is close to standard form
     std_form_regex = re.compile(r"^-?[0-9]+(\.[0-9]+)?[, ]+?-?[0-9]+(\.[0-9]+)?$")
 
     # Regex for checking if string is in DMS form (With or without Decimals)
-    dms_regex = re.compile( r"^(-?[0-9]+(.[0-9]+)? ?d?)"
-                            r"( -?[0-9]+(.[0-9]+)? ?m?)?"
-                            r"( -?[0-9]+(.[0-9]+)? ?s?)?"
+    dms_regex = re.compile( r"^(-?[0-9]+(.[0-9]+)? ?[dms]?)"
+                            r"( -?[0-9]+(.[0-9]+)? ?[dms]?)?"
+                            r"( -?[0-9]+(.[0-9]+)? ?[dms]?)?"
                             r"( [NSEW])?"
                             r"[ ,]+?"
-                            r"(-?[0-9]+(.[0-9]+)? ?d?)"
-                            r"( -?[0-9]+(.[0-9]+)? ?m?)?"
-                            r"( -?[0-9]+(.[0-9]+)? ?s?)?"
+                            r"(-?[0-9]+(.[0-9]+)? ?[dms]?)"
+                            r"( -?[0-9]+(.[0-9]+)? ?[dms]?)?"
+                            r"( -?[0-9]+(.[0-9]+)? ?[dms]?)?"
                             r"( [NSEW])?$")
-
-
-    lazy_dms_regex = re.compile( r"^([0-9]+ [0-9]+ ?){1,3}$")
 
     for str_coord in san_coords:
         # Replace symbols with their corresponding letters for easier processing
         str_coord = str_coord.replace("°", "d")
         str_coord = str_coord.replace("′", "m")
         str_coord = str_coord.replace("″", "s")
+        str_coord = str_coord.strip()
 
         # Check if string is in something resembling standard form:
         if re.match(std_form_regex, str_coord):
-            print("Std form Below:")
-            print(str_coord)
             print_6dp(close_to_stand_form(str_coord))
-            print("======================")
             continue
 
         # Check if string is in something resembling DMS form:
         if re.match(dms_regex, str_coord):
-            print("DMS Below:")
-            print(str_coord)
             try:
                 print_6dp(alt_form(str_coord))
             except Exception as e:
-                print("Unable to process: ",e)
-            print("======================")
+                if verbose:
+                    print("Unable to process:", str_coord, "\t|",e)
+                else:
+                    print("Unable to process:", str_coord)
             continue
 
-        print(str_coord)
-        print("Unable to process: Bad Format")
-        print("======================")
+        if verbose:
+            print("Unable to process:", str_coord,"\t| Bad format, use -h for accepted formats")
+        else:
+            print("Unable to process:", str_coord)
 
 def read_coords():
     """
@@ -108,6 +111,10 @@ def close_to_stand_form(in_string):
 
 
 def alt_form(in_string):
+    """
+        Takes a string that is in DMS form, or similar, and returns
+        a list of format [lat, lon].
+    """
     new_string = in_string
 
     # Remove spaces between values and dms.
@@ -137,15 +144,19 @@ def alt_form(in_string):
         index = search.span()[1]
         split_string = [new_string[:index], new_string[index:].strip()]
 
-    # If string has no comma, or first letter. Split on the middle space
+    # Otherwise If string has no comma, or first letter. Split on the middle space
     num_spaces = new_string.count(" ")
-    if len(split_string) < 1: # Will have 5 spaces if in the form "d m s d m s"
+    if len(split_string) < 1:
         index = None
         search = re.finditer(r" ", new_string)
         for x in range(int(num_spaces/2 + num_spaces%2)):
             found = search.__next__()
         index = found.span()[0]
         split_string = [new_string[:index], new_string[index+1:].strip()]
+
+    # If string has not been split, an error occurecd
+    if len(split_string) < 1:
+        raise Exception("Bad string format: ", in_string)
 
     # Split direction values into their base parts.
     move1 = split_string[0].split()
@@ -161,6 +172,8 @@ def alt_form(in_string):
     last_item = move2[len(move2) - 1]
     if last_item.isalpha():
         dir2 = move2.pop()
+
+    
 
     # Convert DMS arrays to decimal format
     dir1_magnitude = DMS_to_decimal(move1)
@@ -209,12 +222,18 @@ def DMS_to_decimal(dms):
     values_seen = []
     vals = {}
 
-    missing_labels_exception = Exception("A DMS Representation may only contain one of each value d, m, s "
-                                       + "for degrees, miniutes, and seconds respectively")
+    missing_labels_exception = Exception("A DMS Representation must have all of it's magnitudes labeled, or none of them")
+
+    duplicate_labels_exception = Exception("A DMS Representation may only contain one of each value d, m, s "
+                                         + "for degrees, miniutes, and seconds respectively")
 
     significant_decimal_exception = Exception("Decimal values can only be used for the least significant value given.")
     
-    # If every value in DMS is labeled with a magnitude TODO Does not work
+    # A DMS representation may contains a max of 3 values
+    if 3 < len(dms):
+        raise Exception("A DMS representation may contain up to 3 magnitude values, got: "+len(dms))
+    
+    # If every value in DMS is labeled with a magnitude
     for value in dms:
         if "d" in value:
             value = value.replace("d","")
@@ -233,10 +252,10 @@ def DMS_to_decimal(dms):
                 raise missing_labels_exception
             break
         
-    if len(values_seen) != len(set(values_seen)): # If the same magnitude for a value is used twice, this is likely a mistake.
-        raise missing_labels_exception
+    if len(values_seen) != len(set(values_seen)): # If same magnitude is used twice, this is likely a mistake.
+        raise duplicate_labels_exception
 
-    # If input does not contain labels, assume the order d, m, s until we run out of values # TODO Might not work
+    # If input does not contain labels, assume the order d, m, s until we run out of values
     if len(values_seen) == 0:
         magnitude = 0
         last_item_index = len(dms)-1
@@ -255,6 +274,9 @@ def DMS_to_decimal(dms):
 
 
 def remove_wrapping(lat, lon):
+    """
+        Returns a set of co-ordinate's simplest equivilent.
+    """
     if (lat < -90 or 90 < lat): # If lat outside the valid range
         lat %= 90
     if (lon < -180 or 180 < lon): # If lon outside the valid range
@@ -267,6 +289,45 @@ def print_6dp(latlon):
         Prints in format "lat, lon" (to 6dp).
     """
     print("{0:.6f}".format(latlon[0])+", "+"{0:.6f}".format(latlon[1]))
+
+def help_info():
+    """
+        Returns a string of help information.
+    """
+    return  "Co-ordinate converter by Jackson Kerr\n"\
+            "\n"\
+            "Takes input from stdin, and attempts to interpret each line as a coordinate.\n"\
+            "\n"\
+            "Examples of accepted format:\n"\
+            "\tLat, Lon formats:\n"\
+            "\t\t4, 2\n"\
+            "\t\t4 ,2\n"\
+            "\t\t1.234567 -23.987654\n"\
+            "\t\t1.2, -23.9\n"\
+            "\t\t0 0.004\n"\
+            "\t\t1.234567, -23.987654\n"\
+            "\t\t1234.567, -23987.654\n"\
+            "\n"\
+            "\tDegrees, Miniutes, Seconds format:\n"\
+            "\t\t20° 20′ 20″ S, 20° 20′ 20″ W\n"\
+            "\t\t20 ° 20 ′ 20 ″ S, 20 ° 20 ′ 20 ″ W\n"\
+            "\t\t20° 20′ 20″ S 20° 20′ 20″ W\n"\
+            "\n"\
+            "\t\t20d 20m 20s N, 20d 20m 20s E\n"\
+            "\t\t20 d 20 m 20 s S, 20 d 20 m 20 s W\n"\
+            "\t\t20d 20m 20s W 20d 20m 20s S\n"\
+            "\t\t20d 20m 20s S 20d 20m 20s\n"\
+            "\n"\
+            "\t\t20 20 20 N, 20 20 20 E\n"\
+            "\t\t20 20 W, 20 20 S\n"\
+            "\t\t20 E, 20 S\n"\
+            "\t\t20 20 S , 20 20 20 W\n"\
+            "\t\t20.33 E, 190 S\n"\
+            "\t\t40° 26.767′ N 79° 58.933′ W\n"\
+            "\n"\
+            "\t\t20 20 20 20 20 20\n"\
+            "\t\t20 20 20 20\n"\
+
 
 if __name__ == "__main__":
     main()

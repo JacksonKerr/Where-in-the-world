@@ -9,6 +9,8 @@
 # Wrap
 1234.567, -23987.654
 
+20 d 20 m 20 s S, 20 d 20 m 20 s W
+
 # Alt form (Good format)
 20.33 S, 20.33 W
 190 E, 195 S
@@ -24,15 +26,3 @@
 #D DMS Lazy forms
 20 20 20 20 20 20
 20 20 20 20
-
-# Alt form (Bad format)
-20d 20 20s S 20 20m 20s
-20d 20 20s S 20 20s 20s
-20d 20m 20s S 20d 20.4m 20s # THIS SHOULD NOT BE ACCEPTED <<<<<<<<< TODO
-20d 20 20s S 20d 20.4m 20s
-
-
-# Not to be accepted, clearly wrong
-This doesn't look right
-12 34 56 78 90 12 34 56 78 90
-1N, 1S

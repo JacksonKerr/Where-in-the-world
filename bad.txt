@@ -1,0 +1,9 @@
+# Alt form (Bad format)
+20 d 20m 20s S 20d 20m 20
+20 d 20m 20s S 20m 20m 20s
+20d 20m 20s S 20d 20m 20
+
+# Not to be accepted, clearly wrong
+This doesn't look right
+12 34 56 78 90 12 34 56 78 90
+1N, 1S
