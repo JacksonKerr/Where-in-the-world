@@ -4,12 +4,14 @@ import re
 import pprint
 
 def main():
+    verbose = False
+
     # Print out help message if -h flag is used
     if "-h" in sys.argv:
         print(help_info())
         sys.exit()
-
-    verbose = False
+    if "-v" in sys.argv:
+        verbose = True
 
     san_coords = read_coords()
 
@@ -281,8 +283,8 @@ def remove_wrapping(lat, lon):
     """
         Returns a set of co-ordinate's simplest equivilent.
 
-        This method may be a little difficult to understand. It's easiest to 
-        assume the logitude will be positive when reading throught it.
+        This longitude calculation in this method may be a little difficult to understand. 
+        It's easiest to assume the logitude will be positive when reading throught it.
     """
 
     # Latitude
@@ -304,11 +306,11 @@ def remove_wrapping(lat, lon):
 
         if wraps == 1: # If the lon crosses a single pole only
             dist = 90 - magnitude
-        if wraps == 2: # If the lon crosses a pole, then the equator
+        elif wraps == 2: # If the lon crosses a pole, then the equator
             dist = -magnitude
-        if wraps == 3: # If the lon crosses a pole, the equator, then another pole
+        elif wraps == 3: # If the lon crosses a pole, the equator, then another pole
             dist = -(90 - magnitude)
-        if wraps == 0: # If the lon crossed a pole, the equator, another pole, then the equator again
+        elif wraps == 0: # If the lon crossed a pole, the equator, another pole, then the equator again
             dist = magnitude
 
         lat = dist * direction
