@@ -9,7 +9,7 @@ def main():
         print(help_info())
         sys.exit()
 
-    verbose = True
+    verbose = False
 
     san_coords = read_coords()
 
@@ -32,6 +32,10 @@ def main():
         str_coord = str_coord.replace("°", "d")
         str_coord = str_coord.replace("′", "m")
         str_coord = str_coord.replace("″", "s")
+        str_coord = str_coord.replace("North", "N")
+        str_coord = str_coord.replace("East", "E")
+        str_coord = str_coord.replace("South", "S")
+        str_coord = str_coord.replace("West", "W")
         str_coord = str_coord.strip()
 
         # Check if string is in something resembling standard form:
@@ -276,11 +280,59 @@ def DMS_to_decimal(dms):
 def remove_wrapping(lat, lon):
     """
         Returns a set of co-ordinate's simplest equivilent.
+
+        This method may be a little difficult to understand. It's easiest to 
+        assume the logitude will be positive when reading throught it.
     """
-    if (lat < -90 or 90 < lat): # If lat outside the valid range
-        lat %= 90
-    if (lon < -180 or 180 < lon): # If lon outside the valid range
-        lon %= 180
+
+    # Latitude
+    if lat in range(-90, 90):
+        # Lat is already valid
+        pass
+    else:
+        dist = None # The distance from the equator
+
+        magnitude = lat % 90 # The distance from the previous pole
+
+        wraps = lat//90 % 4 # The number of times a pole, or the equator is crossed (wrapping after 4)
+
+        # Assuming we're heading north (At first)
+        direction = 1
+        if magnitude < -90:
+            # Otherwise, we're heading south (At first)
+            direction = -1
+
+        if wraps == 1: # If the lon crosses a single pole only
+            dist = 90 - magnitude
+        if wraps == 2: # If the lon crosses a pole, then the equator
+            dist = -magnitude
+        if wraps == 3: # If the lon crosses a pole, the equator, then another pole
+            dist = -(90 - magnitude)
+        if wraps == 0: # If the lon crossed a pole, the equator, another pole, then the equator again
+            dist = magnitude
+
+        lat = dist * direction
+
+
+    # Longitude
+    if lon in range(-180, 180):
+        # Lon is already valid
+        pass
+    else:
+        # Assume we're heading east
+        direction = 1
+        if 180 < lon: # Otherwise, we're heading West
+            direction = -1
+            
+        dist = lon%180 # Distance from 0
+
+        wraps = lon//180 # Number of times longitude wraps
+
+        if wraps % 2 == 1: # If num of wraps is odd, invert
+            dist = 180-dist
+
+        lon = dist * direction
+
     return [lat, lon]
 
 
