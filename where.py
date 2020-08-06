@@ -288,10 +288,26 @@ def remove_wrapping(lat, lon):
     """
 
     # Latitude
-    if lat in range(-90, 90):
+    if -90 <= lat and lat <= 90:
         # Lat is already valid
         pass
     else:
+        magnitude = lat % 360 # The distance from the equtor
+
+        breaks = magnitude // 90
+
+        direction = 1
+        if not magnitude in range(0, 180):
+            direction = -1
+
+        magnitude  %= 90
+        if breaks % 2 == 1:
+            magnitude = 90 - magnitude
+
+
+        lat = magnitude * direction
+
+        '''
         dist = None # The distance from the equator
 
         magnitude = lat % 90 # The distance from the previous pole
@@ -314,6 +330,7 @@ def remove_wrapping(lat, lon):
             dist = magnitude
 
         lat = dist * direction
+        '''
 
 
     # Longitude
@@ -321,19 +338,12 @@ def remove_wrapping(lat, lon):
         # Lon is already valid
         pass
     else:
-        # Assume we're heading east
-        direction = 1
-        if 180 < lon: # Otherwise, we're heading West
-            direction = -1
-            
-        dist = lon%180 # Distance from 0
+        magnitude = lon % 360 # The distance east from 0
 
-        wraps = lon//180 # Number of times longitude wraps
+        if magnitude > 180: # If the distance east is > 180, 
+            magnitude -= 360
 
-        if wraps % 2 == 1: # If num of wraps is odd, invert
-            dist = 180-dist
-
-        lon = dist * direction
+        lon = magnitude
 
     return [lat, lon]
 
