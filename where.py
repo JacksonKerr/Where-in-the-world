@@ -2,6 +2,7 @@
 import sys
 import re
 import pprint
+import traceback
 
 def main():
     verbose = False
@@ -22,22 +23,23 @@ def main():
     dms_regex = re.compile( r"^(-?[0-9]+(.[0-9]+)? ?[dms]?)"
                             r"( -?[0-9]+(.[0-9]+)? ?[dms]?)?"
                             r"( -?[0-9]+(.[0-9]+)? ?[dms]?)?"
-                            r"( [NSEW])?"
+                            r"( [nsew])?"
                             r"[ ,]+?"
                             r"(-?[0-9]+(.[0-9]+)? ?[dms]?)"
                             r"( -?[0-9]+(.[0-9]+)? ?[dms]?)?"
                             r"( -?[0-9]+(.[0-9]+)? ?[dms]?)?"
-                            r"( [NSEW])?$")
+                            r"( [nsew])?$")
 
     for str_coord in san_coords:
         # Replace symbols with their corresponding letters for easier processing
         str_coord = str_coord.replace("°", "d")
         str_coord = str_coord.replace("′", "m")
         str_coord = str_coord.replace("″", "s")
-        str_coord = str_coord.replace("North", "N")
-        str_coord = str_coord.replace("East", "E")
-        str_coord = str_coord.replace("South", "S")
-        str_coord = str_coord.replace("West", "W")
+        str_coord = str_coord.replace("North", "n")
+        str_coord = str_coord.replace("East", "e")
+        str_coord = str_coord.replace("South", "s")
+        str_coord = str_coord.replace("West", "w")
+        str_coord = str_coord.lower()
         str_coord = str_coord.strip()
 
         # Check if string is in something resembling standard form:
@@ -51,7 +53,7 @@ def main():
                 print_6dp(alt_form(str_coord))
             except Exception as e:
                 if verbose:
-                    print("Unable to process:", str_coord, "\t|",e)
+                    print("Unable to process:", str_coord, "\t|", e)
                 else:
                     print("Unable to process:", str_coord)
             continue
@@ -129,7 +131,7 @@ def alt_form(in_string):
         index = search.span()[0]
         new_string = new_string[:index+1] + new_string[index+2:]
         search = re.search(r"\d [a-z]", new_string)
-
+    
     num_commas = in_string.count(",")
     split_string = []
 
@@ -139,12 +141,12 @@ def alt_form(in_string):
             split_string = new_string.split(", ")
         elif new_string.find(" ,") > 0:
             split_string = new_string.split(" ,")
-    
+
     # If string has no comma, split on the space after the first direction letter.
     commaRegex = re.compile(r"^(-?[0-9]+(\.[0-9]+)? ?d?)?"
                             r"( -?[0-9]+(\.[0-9]+)? ?m?)?"
                             r"( -?[0-9]+(\.[0-9]+)? ?s?)?"
-                            r" ([NSEW] )")
+                            r" ([nsew] )")
     search = re.search(commaRegex, new_string)
     if len(split_string) == 0 and search is not None:
         index = search.span()[1]
@@ -169,17 +171,25 @@ def alt_form(in_string):
     move2 = split_string[1].split()
 
     # Retrieve direction values, or assume them to be N, W if they were not given
-    dir1 = "N"
-    last_item = move1[len(move1)-1]
-    if last_item.isalpha():
-        dir1 = move1.pop()
+    dir1 = "n"
+    lastIndex = len(move1) - 1
+    last_item = move1[lastIndex]
+    if last_item.isupper() or last_item.islower(): # If string contains a letter.
+        if len(last_item) == 1: # If last item only contains a letter, remove it and take it as the direction.
+            dir1 = move1.pop()
+        else:
+            dir1 = last_item[len(last_item)-1]
+            move1[lastIndex] = move1[lastIndex].replace(dir1, "")
 
-    dir2 = "E"
+    dir2 = "e"
+    lastIndex = len(move2) - 1
     last_item = move2[len(move2) - 1]
-    if last_item.isalpha():
-        dir2 = move2.pop()
-
-    
+    if last_item.isupper() or last_item.islower(): # If string contains a letter.
+        if len(last_item) == 1: # If last item only contains a letter, remove it and take it as the direction.
+            dir2 = move2.pop()
+        else:
+            dir2 = last_item[len(last_item)-1]
+            move2[lastIndex] = move2[lastIndex].replace(dir2, "")
 
     # Convert DMS arrays to decimal format
     dir1_magnitude = DMS_to_decimal(move1)
@@ -189,25 +199,25 @@ def alt_form(in_string):
     lat = None
     lon = None
 
-    if (dir1 in "EW" and dir2 in "EW") or (dir1 in "NS" and dir2 in "NS"):
+    if (dir1 in "ew" and dir2 in "ew") or (dir1 in "ns" and dir2 in "ns"):
         raise Exception("Both directions cannot be on the same axis.")
 
-    if dir1 == "N":
+    if dir1 == "n":
         lat = dir1_magnitude
-    elif dir1 == "S":
+    elif dir1 == "s":
         lat = -dir1_magnitude
-    elif dir1 == "E":
+    elif dir1 == "e":
         lon = dir1_magnitude
-    elif dir1 == "W":
+    elif dir1 == "w":
         lon = -dir1_magnitude
 
-    if dir2 == "N":
+    if dir2 == "n":
         lat = dir2_magnitude
-    elif dir2 == "S":
+    elif dir2 == "s":
         lat = -dir2_magnitude
-    elif dir2 == "E":
+    elif dir2 == "e":
         lon = dir2_magnitude
-    elif dir2 == "W":
+    elif dir2 == "w":
         lon = -dir2_magnitude
 
     latlon = remove_wrapping(lat, lon)
@@ -228,16 +238,18 @@ def DMS_to_decimal(dms):
     values_seen = []
     vals = {}
 
-    missing_labels_exception = Exception("A DMS Representation must have all of it's magnitudes labeled, or none of them")
+    missing_labels_exception = Exception("A DMS Representation must have either all, or none of it's magnitudes labeled. The same goes for direction.")
 
     duplicate_labels_exception = Exception("A DMS Representation may only contain one of each value d, m, s "
                                          + "for degrees, miniutes, and seconds respectively")
 
     significant_decimal_exception = Exception("Decimal values can only be used for the least significant value given.")
+
+    too_many_values_exception = Exception("A DMS representation may contain up to 3 magnitude values, got: " + str(len(dms)))
     
     # A DMS representation may contains a max of 3 values
     if 3 < len(dms):
-        raise Exception("A DMS representation may contain up to 3 magnitude values, got: "+len(dms))
+        raise too_many_values_exception
     
     # If every value in DMS is labeled with a magnitude
     for value in dms:
@@ -262,6 +274,9 @@ def DMS_to_decimal(dms):
         raise duplicate_labels_exception
 
     # If input does not contain labels, assume the order d, m, s until we run out of values
+
+
+
     if len(values_seen) == 0:
         magnitude = 0
         last_item_index = len(dms)-1
@@ -293,45 +308,18 @@ def remove_wrapping(lat, lon):
         pass
     else:
         magnitude = lat % 360 # The distance from the equtor
-
-        breaks = magnitude // 90
+        breaks = magnitude // 90 # The number of times the equator or a pole if crossed
 
         direction = 1
-        if not magnitude in range(0, 180):
+        if not magnitude in range(0, 180):  # ie. If we are in the sothern hemisphere
             direction = -1
 
-        magnitude  %= 90
-        if breaks % 2 == 1:
+        magnitude  %= 90 # magnitude now represents the distance from the previous equator/pole intersection
+
+        if breaks % 2 == 1: # If magnitude is getting closer to the equator in it's last moment of travel
             magnitude = 90 - magnitude
 
-
         lat = magnitude * direction
-
-        '''
-        dist = None # The distance from the equator
-
-        magnitude = lat % 90 # The distance from the previous pole
-
-        wraps = lat//90 % 4 # The number of times a pole, or the equator is crossed (wrapping after 4)
-
-        # Assuming we're heading north (At first)
-        direction = 1
-        if magnitude < -90:
-            # Otherwise, we're heading south (At first)
-            direction = -1
-
-        if wraps == 1: # If the lon crosses a single pole only
-            dist = 90 - magnitude
-        elif wraps == 2: # If the lon crosses a pole, then the equator
-            dist = -magnitude
-        elif wraps == 3: # If the lon crosses a pole, the equator, then another pole
-            dist = -(90 - magnitude)
-        elif wraps == 0: # If the lon crossed a pole, the equator, another pole, then the equator again
-            dist = magnitude
-
-        lat = dist * direction
-        '''
-
 
     # Longitude
     if lon in range(-180, 180):
@@ -380,7 +368,6 @@ def help_info():
             "\t\t20d 20m 20s N, 20d 20m 20s E\n"\
             "\t\t20 d 20 m 20 s S, 20 d 20 m 20 s W\n"\
             "\t\t20d 20m 20s W 20d 20m 20s S\n"\
-            "\t\t20d 20m 20s S 20d 20m 20s\n"\
             "\n"\
             "\t\t20 20 20 N, 20 20 20 E\n"\
             "\t\t20 20 W, 20 20 S\n"\
