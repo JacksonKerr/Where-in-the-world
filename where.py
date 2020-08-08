@@ -4,15 +4,21 @@ import re
 import pprint
 import traceback
 
-def main():
-    verbose = False
+verbose = False
+accept_unspecific_input = False
 
+def main():
+    global verbose, accept_unspecific_input
     # Print out help message if -h flag is used
     if "-h" in sys.argv:
         print(help_info())
         sys.exit()
+    # Give more detailed error messsages if -v flag is used
     if "-v" in sys.argv:
         verbose = True
+    # Wrap latitudes when < -90 or > 90, and allow negitive values with explicit diretions if -w flag is given
+    if "-u" in sys.argv:
+        accept_unspecific_input = True
 
     san_coords = read_coords()
 
@@ -31,20 +37,32 @@ def main():
                             r"( [nsew])?$")
 
     for str_coord in san_coords:
+        given_str = str_coord
+
         # Replace symbols with their corresponding letters for easier processing
+        str_coord = str_coord.lower()
         str_coord = str_coord.replace("°", "d")
         str_coord = str_coord.replace("′", "m")
         str_coord = str_coord.replace("″", "s")
-        str_coord = str_coord.replace("North", "n")
-        str_coord = str_coord.replace("East", "e")
-        str_coord = str_coord.replace("South", "s")
-        str_coord = str_coord.replace("West", "w")
-        str_coord = str_coord.lower()
+        str_coord = str_coord.replace("north", "n")
+        str_coord = str_coord.replace("east", "e")
+        str_coord = str_coord.replace("south", "s")
+        str_coord = str_coord.replace("west", "w")
         str_coord = str_coord.strip()
 
         # Check if string is in something resembling standard form:
         if re.match(std_form_regex, str_coord):
-            print_6dp(close_to_stand_form(str_coord))
+            try:
+                print_6dp(close_to_stand_form(str_coord))
+            except Exception as e:
+                if verbose:
+                    print("Unable to process:", given_str, "\t|", e)
+                else:
+                    print("Unable to process:", given_str)
+            continue
+
+
+
             continue
 
         # Check if string is in something resembling DMS form:
@@ -53,15 +71,15 @@ def main():
                 print_6dp(alt_form(str_coord))
             except Exception as e:
                 if verbose:
-                    print("Unable to process:", str_coord, "\t|", e)
+                    print("Unable to process:", given_str, "\t|", e)
                 else:
-                    print("Unable to process:", str_coord)
+                    print("Unable to process:", given_str)
             continue
 
         if verbose:
-            print("Unable to process:", str_coord,"\t| Bad format, use -h for accepted formats")
+            print("Unable to process:", given_str,"\t| Bad format, use -h for accepted formats")
         else:
-            print("Unable to process:", str_coord)
+            print("Unable to process:", given_str)
 
 def read_coords():
     """
@@ -123,6 +141,7 @@ def alt_form(in_string):
         Takes a string that is in DMS form, or similar, and returns
         a list of format [lat, lon].
     """
+    explicit_dir = [False, False]
     new_string = in_string
 
     # Remove spaces between values and dms.
@@ -175,6 +194,7 @@ def alt_form(in_string):
     lastIndex = len(move1) - 1
     last_item = move1[lastIndex]
     if last_item.isupper() or last_item.islower(): # If string contains a letter.
+        explicit_dir[0] = True
         if len(last_item) == 1: # If last item only contains a letter, remove it and take it as the direction.
             dir1 = move1.pop()
         else:
@@ -185,11 +205,20 @@ def alt_form(in_string):
     lastIndex = len(move2) - 1
     last_item = move2[len(move2) - 1]
     if last_item.isupper() or last_item.islower(): # If string contains a letter.
+        explicit_dir[1] = True
         if len(last_item) == 1: # If last item only contains a letter, remove it and take it as the direction.
             dir2 = move2.pop()
         else:
             dir2 = last_item[len(last_item)-1]
             move2[lastIndex] = move2[lastIndex].replace(dir2, "")
+
+    # If a negative value and a direction are given, this could be a typo
+    if not accept_unspecific_input:
+        explicit_value_exception = Exception("Direction values cannot be negative if an explicit direction is given")
+        if "-" in move1[0] and explicit_dir[0]:
+            raise explicit_value_exception
+        if "-" in move2[0] and explicit_dir[1]:
+            raise explicit_value_exception
 
     # Convert DMS arrays to decimal format
     dir1_magnitude = DMS_to_decimal(move1)
@@ -307,19 +336,23 @@ def remove_wrapping(lat, lon):
         # Lat is already valid
         pass
     else:
-        magnitude = lat % 360 # The distance from the equtor
-        breaks = magnitude // 90 # The number of times the equator or a pole if crossed
+        if accept_unspecific_input:
+            # Unwrap lat
+            magnitude = lat % 360 # The distance from the equtor
+            breaks = magnitude // 90 # The number of times the equator or a pole if crossed
 
-        direction = 1
-        if not magnitude in range(0, 180):  # ie. If we are in the sothern hemisphere
-            direction = -1
+            direction = 1
+            if not magnitude in range(0, 180):  # ie. If we are in the sothern hemisphere
+                direction = -1
 
-        magnitude  %= 90 # magnitude now represents the distance from the previous equator/pole intersection
+            magnitude  %= 90 # magnitude now represents the distance from the previous equator/pole intersection
 
-        if breaks % 2 == 1: # If magnitude is getting closer to the equator in it's last moment of travel
-            magnitude = 90 - magnitude
+            if breaks % 2 == 1: # If magnitude is getting closer to the equator in it's last moment of travel
+                magnitude = 90 - magnitude
 
-        lat = magnitude * direction
+            lat = magnitude * direction
+        else:
+            raise Exception("Latitude cannot be > 90 or < -90 unless -w flag is given")
 
     # Longitude
     if lon in range(-180, 180):
@@ -346,9 +379,16 @@ def help_info():
     """
         Returns a string of help information.
     """
-    return  "Co-ordinate converter by Jackson Kerr\n"\
+    return  "\n"\
+            "Co-ordinate converter by Jackson Kerr\n"\
             "\n"\
             "Takes input from stdin, and attempts to interpret each line as a coordinate.\n"\
+            "\n"\
+            "Flags:\n"\
+            "\t-h Prints out this help message\n"\
+            "\t-v Gives more verbose error messages\n"\
+            "\t-u Enables longitude wrapping, and allows negative values when an explicit\n"\
+            "\t   direction is also given\n"\
             "\n"\
             "Examples of accepted format:\n"\
             "\tLat, Lon formats:\n"\
@@ -360,7 +400,7 @@ def help_info():
             "\t\t1.234567, -23.987654\n"\
             "\t\t1234.567, -23987.654\n"\
             "\n"\
-            "\tDegrees, Miniutes, Seconds format:\n"\
+            "\tDegrees, Miniutes, Seconds formats:\n"\
             "\t\t20° 20′ 20″ S, 20° 20′ 20″ W\n"\
             "\t\t20 ° 20 ′ 20 ″ S, 20 ° 20 ′ 20 ″ W\n"\
             "\t\t20° 20′ 20″ S 20° 20′ 20″ W\n"\
